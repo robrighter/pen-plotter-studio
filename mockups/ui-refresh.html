@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pen Plotter Studio UI Refresh Mockup</title>
+    <style>
+      :root {
+        --bg: #18191b;
+        --surface: #222428;
+        --surface-2: #292c31;
+        --surface-3: #30343a;
+        --line: #40464f;
+        --line-soft: #31363d;
+        --text: #f1f0ea;
+        --muted: #aaa79d;
+        --quiet: #7f837f;
+        --paper: #f7f3e8;
+        --ink: #cf2f67;
+        --travel: #d86f43;
+        --cyan: #57c7c2;
+        --green: #8fbf73;
+        --amber: #e0a84e;
+        --shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
+        color-scheme: dark;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          linear-gradient(120deg, rgba(87, 199, 194, 0.08), transparent 34%),
+          radial-gradient(circle at 78% 12%, rgba(224, 168, 78, 0.08), transparent 28%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: minmax(280px, 320px) minmax(520px, 1fr) minmax(260px, 300px);
+        min-height: 100vh;
+      }
+
+      .rail,
+      .inspector {
+        min-height: 100vh;
+        background: rgba(34, 36, 40, 0.92);
+        border-color: var(--line-soft);
+      }
+
+      .rail {
+        border-right: 1px solid var(--line-soft);
+      }
+
+      .inspector {
+        border-left: 1px solid var(--line-soft);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 64px;
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .brand-lockup {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid rgba(87, 199, 194, 0.48);
+        border-radius: 8px;
+        background: #172022;
+      }
+
+      .mark svg {
+        width: 22px;
+        height: 22px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 15px;
+        font-weight: 760;
+        line-height: 1.1;
+      }
+
+      .subtitle,
+      .micro,
+      .field span,
+      .metric-label {
+        color: var(--muted);
+      }
+
+      .subtitle {
+        margin-top: 3px;
+        font-size: 11px;
+      }
+
+      .status-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 99px;
+        background: var(--green);
+        box-shadow: 0 0 0 4px rgba(143, 191, 115, 0.12);
+      }
+
+      .section {
+        padding: 15px 18px 18px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      h2 {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 760;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .chip,
+      .mode,
+      .pill {
+        border: 1px solid var(--line);
+        background: #1b1d20;
+        color: var(--text);
+      }
+
+      .chip {
+        min-height: 27px;
+        padding: 5px 8px;
+        border-radius: 7px;
+        font-size: 11px;
+      }
+
+      .paper-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      .metric {
+        min-height: 66px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #1d1f23;
+      }
+
+      .metric-value {
+        margin-top: 6px;
+        font-size: 18px;
+        font-weight: 760;
+        letter-spacing: 0;
+      }
+
+      .metric-label {
+        font-size: 11px;
+      }
+
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #1b1d20;
+      }
+
+      .tab {
+        display: grid;
+        place-items: center;
+        min-height: 34px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        cursor: default;
+      }
+
+      .tab.active {
+        background: var(--surface-3);
+        color: var(--text);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+      }
+
+      .tab svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .select-row,
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .select-row {
+        margin-top: 12px;
+      }
+
+      select,
+      input[type="number"],
+      input[type="text"] {
+        width: 100%;
+        height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #191b1e;
+        color: var(--text);
+        padding: 0 10px;
+      }
+
+      .field {
+        margin-top: 13px;
+      }
+
+      .field span {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 12px;
+      }
+
+      .field strong {
+        color: var(--text);
+        font-weight: 650;
+      }
+
+      .range-row {
+        display: grid;
+        grid-template-columns: 1fr 70px;
+        gap: 10px;
+        align-items: center;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--cyan);
+      }
+
+      .swatches {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 9px;
+        margin-top: 13px;
+      }
+
+      .swatch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+        padding: 7px 9px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #1b1d20;
+        font-size: 12px;
+      }
+
+      .color-dot {
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 9px;
+        margin-top: 15px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 38px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        color: var(--text);
+        font-weight: 720;
+        cursor: default;
+      }
+
+      .btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn.primary {
+        background: var(--cyan);
+        color: #102223;
+      }
+
+      .btn.secondary {
+        border-color: var(--line);
+        background: var(--surface-3);
+      }
+
+      .stage {
+        display: grid;
+        grid-template-rows: 64px 1fr 54px;
+        min-width: 0;
+      }
+
+      .topbar,
+      .bottombar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 0 22px;
+        border-color: var(--line-soft);
+        background: rgba(24, 25, 27, 0.84);
+      }
+
+      .topbar {
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .bottombar {
+        border-top: 1px solid var(--line-soft);
+      }
+
+      .title-stack {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .title-stack h3 {
+        font-size: 14px;
+      }
+
+      .micro {
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .tool-strip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .icon-btn {
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #1c1e22;
+        color: var(--muted);
+      }
+
+      .icon-btn.active {
+        color: var(--cyan);
+        border-color: rgba(87, 199, 194, 0.52);
+        background: rgba(87, 199, 194, 0.1);
+      }
+
+      .icon-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .canvas-wrap {
+        position: relative;
+        display: grid;
+        place-items: center;
+        min-height: 0;
+        padding: 34px;
+        overflow: hidden;
+      }
+
+      .mat {
+        position: relative;
+        width: min(58vh, 56vw);
+        min-width: 360px;
+        aspect-ratio: 210 / 297;
+        background: var(--paper);
+        border-radius: 3px;
+        box-shadow:
+          0 0 0 1px rgba(20, 18, 15, 0.3),
+          0 22px 60px rgba(0, 0, 0, 0.42);
+        overflow: hidden;
+      }
+
+      .paper-gridlines {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(40, 44, 49, 0.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(40, 44, 49, 0.06) 1px, transparent 1px);
+        background-size: 34px 34px;
+      }
+
+      .margin-box {
+        position: absolute;
+        inset: 5.2%;
+        border: 1px dashed rgba(24, 25, 27, 0.26);
+      }
+
+      .plot {
+        position: absolute;
+        inset: 8% 7%;
+      }
+
+      .axis-label {
+        position: absolute;
+        color: rgba(31, 33, 35, 0.55);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .axis-label.top {
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .axis-label.side {
+        top: 50%;
+        right: 10px;
+        transform: rotate(90deg) translateX(50%);
+        transform-origin: right center;
+      }
+
+      .overlay-card {
+        position: absolute;
+        left: 24px;
+        bottom: 22px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 11px;
+        border: 1px solid rgba(64, 70, 79, 0.55);
+        border-radius: 8px;
+        background: rgba(24, 25, 27, 0.86);
+        box-shadow: var(--shadow);
+      }
+
+      .layer-swatch {
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+        background: var(--ink);
+      }
+
+      .toggle-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 30px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: 12px;
+      }
+
+      .mode {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        padding: 4px;
+        border-radius: 8px;
+      }
+
+      .mode span {
+        display: grid;
+        place-items: center;
+        min-height: 30px;
+        border-radius: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .mode span:first-child {
+        background: var(--surface-3);
+        color: var(--text);
+      }
+
+      .stats-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .stat {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: baseline;
+        min-height: 42px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .stat:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+
+      .stat b {
+        font-size: 18px;
+        letter-spacing: 0;
+      }
+
+      .progress {
+        height: 8px;
+        margin-top: 9px;
+        border-radius: 99px;
+        background: #17191c;
+        overflow: hidden;
+      }
+
+      .progress span {
+        display: block;
+        width: 78%;
+        height: 100%;
+        background: linear-gradient(90deg, var(--travel), var(--green));
+      }
+
+      .machine-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .command {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+        min-height: 40px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #1b1d20;
+      }
+
+      code {
+        color: var(--cyan);
+        font-family: "Cascadia Mono", Consolas, monospace;
+        font-size: 12px;
+      }
+
+      .exports {
+        display: grid;
+        gap: 9px;
+      }
+
+      .exports .btn {
+        justify-content: space-between;
+        padding: 0 12px;
+      }
+
+      @media (max-width: 980px) {
+        .shell {
+          grid-template-columns: 300px 1fr;
+        }
+
+        .inspector {
+          display: none;
+        }
+
+        .mat {
+          width: min(66vh, 58vw);
+          min-width: 330px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail">
+        <header class="brand">
+          <div class="brand-lockup">
+            <div class="mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4 17.5c3.2-8 6.2-8 9.4 0 2.1 5.3 4.2 4.3 6.6-3" stroke="#57c7c2" stroke-width="1.8" stroke-linecap="round" />
+                <path d="M5 5h14M5 9h14" stroke="#e0a84e" stroke-width="1.6" stroke-linecap="round" opacity=".9" />
+              </svg>
+            </div>
+            <div>
+              <h1>Pen Plotter Studio</h1>
+              <p class="subtitle">Generative paths to SVG and GCode</p>
+            </div>
+          </div>
+          <span class="status-dot" aria-hidden="true"></span>
+        </header>
+
+        <section class="section">
+          <div class="section-head">
+            <h2>Paper</h2>
+            <button class="chip">A4 portrait</button>
+          </div>
+          <div class="paper-grid">
+            <div class="metric">
+              <div class="metric-label">Width</div>
+              <div class="metric-value">210</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Height</div>
+              <div class="metric-value">297</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Margin</div>
+              <div class="metric-value">15</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head">
+            <h2>Generator</h2>
+            <span class="micro">Layer 1</span>
+          </div>
+          <div class="tabs" aria-label="Generator families">
+            <button class="tab" title="Flow field">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 8c4-4 8 4 12 0 1.5-1.5 2.7-2 4-2M4 16c4-4 8 4 12 0 1.5-1.5 2.7-2 4-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+            </button>
+            <button class="tab" title="Hilbert curve">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M7 5v5h10V5M7 19v-5h10v5M12 10v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <button class="tab" title="TSP stipple">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M6 7h.1M18 6h.1M14 13h.1M7 18h.1M6 7l8 6 4-7M14 13l-7 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <button class="tab active" title="Ridgeline">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 17c3-4 5-4 8 0s5 4 8 0M4 12c3-3 5-3 8 0s5 3 8 0M4 7c3-2 5-2 8 0s5 2 8 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+            </button>
+          </div>
+
+          <label class="select-row">
+            <span class="micro">Type</span>
+            <select>
+              <option>Ridgeline (Joy Division)</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Seed <strong>7</strong></span>
+            <div class="range-row"><input type="range" value="7" min="0" max="9999" /><input type="number" value="7" /></div>
+          </label>
+          <label class="field">
+            <span>Lines <strong>60</strong></span>
+            <div class="range-row"><input type="range" value="60" min="5" max="200" /><input type="number" value="60" /></div>
+          </label>
+          <label class="field">
+            <span>Resolution <strong>240</strong></span>
+            <div class="range-row"><input type="range" value="240" min="40" max="600" /><input type="number" value="240" /></div>
+          </label>
+          <label class="field">
+            <span>Amplitude <strong>45 mm</strong></span>
+            <div class="range-row"><input type="range" value="45" min="0" max="120" /><input type="number" value="45" /></div>
+          </label>
+
+          <div class="swatches">
+            <div class="swatch"><span class="color-dot" style="background: var(--ink)"></span>Pen</div>
+            <div class="swatch"><span class="color-dot" style="background: var(--paper)"></span>Paper</div>
+          </div>
+
+          <div class="actions">
+            <button class="btn secondary">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M17 3h4v4M21 3l-7 7M7 21H3v-4M3 21l7-7M17 21h4v-4M21 21l-7-7M7 3H3v4M3 3l7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              Seed
+            </button>
+            <button class="btn primary">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              Generate
+            </button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="stage">
+        <header class="topbar">
+          <div class="title-stack">
+            <h3>ridgeline.gcode</h3>
+            <span class="micro">Optimized preview</span>
+          </div>
+          <div class="tool-strip">
+            <button class="icon-btn active" title="Show ink paths">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 17c3-4 5-4 8 0s5 4 8 0M4 12c3-3 5-3 8 0s5 3 8 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+            </button>
+            <button class="icon-btn" title="Show travel moves">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M6 6h.1M18 18h.1" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+            </button>
+            <button class="icon-btn" title="Fit to paper">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+            </button>
+          </div>
+        </header>
+
+        <section class="canvas-wrap">
+          <div class="mat">
+            <div class="paper-gridlines"></div>
+            <div class="margin-box"></div>
+            <div class="axis-label top">210 mm</div>
+            <div class="axis-label side">297 mm</div>
+            <svg class="plot" viewBox="0 0 720 980" preserveAspectRatio="none">
+              <defs>
+                <filter id="softInk">
+                  <feDropShadow dx="0" dy="0.25" stdDeviation="0.25" flood-color="#cf2f67" flood-opacity="0.16" />
+                </filter>
+              </defs>
+              <g fill="none" stroke="#cf2f67" stroke-width="1.55" stroke-linecap="round" filter="url(#softInk)">
+                <path d="M20 76 C120 32 153 112 250 78 S397 36 478 86 604 28 700 58" />
+                <path d="M20 102 C122 58 160 130 252 104 S390 62 476 114 603 52 700 86" />
+                <path d="M20 132 C118 92 168 157 258 129 S392 95 475 143 603 83 700 116" />
+                <path d="M20 166 C123 119 176 190 265 156 S397 130 483 180 612 122 700 152" />
+                <path d="M20 204 C124 159 177 221 268 192 S405 163 488 213 615 162 700 190" />
+                <path d="M20 248 C120 205 184 257 279 232 S416 209 497 256 620 204 700 232" />
+                <path d="M20 292 C120 254 192 299 292 277 S432 254 510 296 627 244 700 274" />
+                <path d="M20 340 C124 300 202 349 306 319 S448 300 530 342 639 289 700 320" />
+                <path d="M20 388 C132 345 214 401 326 358 S469 345 548 386 648 334 700 366" />
+                <path d="M20 438 C140 392 225 452 344 398 S490 393 568 432 660 382 700 412" />
+                <path d="M20 488 C148 445 235 503 361 440 S511 443 588 482 673 433 700 462" />
+                <path d="M20 540 C155 500 242 555 372 487 S530 496 607 535 684 488 700 516" />
+                <path d="M20 592 C160 553 250 606 383 538 S548 552 622 586 693 544 700 572" />
+                <path d="M20 646 C162 610 257 660 392 590 S561 609 635 642 697 600 700 628" />
+                <path d="M20 700 C158 668 261 713 398 643 S568 666 640 696 700 654 700 684" />
+                <path d="M20 754 C154 725 264 766 405 697 S569 724 642 750 701 712 700 740" />
+                <path d="M20 808 C149 780 265 816 408 752 S570 779 640 803 699 768 700 795" />
+                <path d="M20 862 C144 837 264 870 410 810 S570 836 636 858 695 823 700 850" />
+              </g>
+              <g fill="none" stroke="#d86f43" stroke-width="1" stroke-dasharray="8 8" opacity=".42">
+                <path d="M17 76 L20 102 M700 58 L20 132 M700 86 L20 166 M700 116 L20 204" />
+              </g>
+            </svg>
+          </div>
+          <div class="overlay-card">
+            <span class="layer-swatch"></span>
+            <div>
+              <div class="micro">Active layer</div>
+              <strong>Ridgeline, 60 paths</strong>
+            </div>
+          </div>
+        </section>
+
+        <footer class="bottombar">
+          <div class="toggle-row">
+            <span class="pill">Optimize travel on</span>
+            <span class="pill">Travel overlay off</span>
+            <span class="pill">Origin bottom-left</span>
+          </div>
+          <span class="micro">Canvas scale 1:3.6</span>
+        </footer>
+      </main>
+
+      <aside class="inspector">
+        <section class="section">
+          <div class="section-head">
+            <h2>Output</h2>
+            <button class="chip">Ready</button>
+          </div>
+          <div class="stats-list">
+            <div class="stat">
+              <span class="metric-label">Ink length</span>
+              <b>2.13 m</b>
+            </div>
+            <div class="stat">
+              <span class="metric-label">Paths</span>
+              <b>60</b>
+            </div>
+            <div class="stat">
+              <span class="metric-label">Travel saved</span>
+              <b>78%</b>
+            </div>
+          </div>
+          <div class="progress"><span></span></div>
+        </section>
+
+        <section class="section">
+          <div class="section-head">
+            <h2>Machine Profile</h2>
+          </div>
+          <div class="machine-grid">
+            <div class="command"><span class="micro">Pen up</span><code>M5</code></div>
+            <div class="command"><span class="micro">Pen down</span><code>M3 S90</code></div>
+            <div class="command"><span class="micro">Draw feed</span><code>1200</code></div>
+            <div class="command"><span class="micro">Travel feed</span><code>3000</code></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head">
+            <h2>Export</h2>
+          </div>
+          <div class="exports">
+            <button class="btn secondary"><span>SVG</span><code>ridgeline.svg</code></button>
+            <button class="btn primary"><span>GCode</span><code style="color:#102223">ridgeline.gcode</code></button>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
