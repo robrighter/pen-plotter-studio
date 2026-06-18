@@ -7,23 +7,61 @@
   </head>
   <body>
     <div id="app">
-      <aside id="sidebar" class="rail">
-        <header class="brand">
+      <header class="app-header" data-tauri-drag-region>
+        <div class="brand" data-tauri-drag-region>
           <div class="brand-lockup">
-            <div class="mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M4 17.5c3.2-8 6.2-8 9.4 0 2.1 5.3 4.2 4.3 6.6-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                <path d="M5 5h14M5 9h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".55" />
-              </svg>
-            </div>
-            <div>
+            <img class="mark" src="/app-icon.png" alt="" aria-hidden="true" />
+            <div data-tauri-drag-region>
               <h1>Pen Plotter Studio</h1>
               <p>Generative paths to SVG and GCode</p>
             </div>
           </div>
           <span class="status-dot" aria-hidden="true"></span>
-        </header>
+        </div>
 
+        <div class="header-context" data-tauri-drag-region>
+          <div class="document-row" data-tauri-drag-region>
+            <div class="file-menu-wrap">
+              <button id="btn-file-menu" class="file-menu-button" type="button" aria-haspopup="menu" aria-expanded="false">
+                File
+                <span aria-hidden="true">&#9662;</span>
+              </button>
+              <div id="file-menu" class="file-menu" role="menu" hidden>
+                <button id="file-new" type="button" role="menuitem">New</button>
+                <button id="file-open" type="button" role="menuitem">Open...</button>
+                <span class="file-menu-separator" aria-hidden="true"></span>
+                <button id="file-save" type="button" role="menuitem">Save</button>
+                <button id="file-save-as" type="button" role="menuitem">Save As...</button>
+              </div>
+              <input id="project-open-input" type="file" accept=".ppstudio,application/json" hidden />
+            </div>
+            <input id="document-name" class="document-name" value="untitled" aria-label="Document name" />
+          </div>
+          <p id="drawing-subtitle">Optimized preview</p>
+        </div>
+
+        <div class="header-actions" data-tauri-drag-region>
+          <div class="window-controls" aria-label="Window controls">
+            <button id="btn-window-minimize" class="window-button" type="button" title="Minimize">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M3 8h10" />
+              </svg>
+            </button>
+            <button id="btn-window-maximize" class="window-button" type="button" title="Maximize">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4.5 4.5h7v7h-7z" />
+              </svg>
+            </button>
+            <button id="btn-window-close" class="window-button close" type="button" title="Close">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <aside id="sidebar" class="rail">
         <section class="panel">
           <div class="panel-head">
             <h2>Paper</h2>
@@ -67,25 +105,6 @@
       </aside>
 
       <main id="stage">
-        <header class="stagebar">
-          <div>
-            <h2 id="drawing-title">untitled.gcode</h2>
-            <p id="drawing-subtitle">Optimized preview</p>
-          </div>
-          <div class="tool-strip" aria-label="Preview options">
-            <button class="icon-button active" type="button" title="Ink paths">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M4 17c3-4 5-4 8 0s5 4 8 0M4 12c3-3 5-3 8 0s5 3 8 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              </svg>
-            </button>
-            <label class="icon-button toggle-button" title="Show travel moves">
-              <input type="checkbox" id="opt-show-travel" />
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M5 19L19 5M6 6h.1M18 18h.1" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-              </svg>
-            </label>
-          </div>
-        </header>
         <section class="canvas-shell">
           <div class="paper-frame">
             <canvas id="preview"></canvas>
@@ -112,10 +131,7 @@
 
       <aside id="inspector" class="rail">
         <section class="panel">
-          <div class="panel-head">
-            <h2>Output</h2>
-            <span class="chip">Ready</span>
-          </div>
+          <h2>Output</h2>
           <div id="stats" class="stats">No drawing yet.</div>
           <div class="row">
             <button id="btn-export-svg" class="secondary">Export SVG</button>

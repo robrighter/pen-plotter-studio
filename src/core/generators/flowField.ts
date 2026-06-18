@@ -1,6 +1,7 @@
 import { Path } from "../geometry";
 import { mulberry32, RNG } from "../rng";
 import { Perlin } from "../noise";
+import { HeightField, sampleImageField } from "../imageField";
 
 // Particles are dropped at random and dragged along a Perlin noise field, each
 // tracing a polyline until it leaves the page or runs out of steps. This is the
@@ -18,6 +19,10 @@ export interface FlowFieldParams {
   noiseScale: number;
   /** how many half-turns the noise maps onto */
   curl: number;
+  field?: HeightField | null;
+  invert?: boolean;
+  imageInfluence?: number;
+  imageContrast?: number;
 }
 
 export const flowFieldDefaults: FlowFieldParams = {
@@ -30,6 +35,8 @@ export const flowFieldDefaults: FlowFieldParams = {
   maxSteps: 200,
   noiseScale: 0.008,
   curl: 2.0,
+  imageInfluence: 0.75,
+  imageContrast: 1.35,
 };
 
 export function flowField(p: FlowFieldParams): Path[] {
@@ -43,6 +50,20 @@ export function flowField(p: FlowFieldParams): Path[] {
   const y1 = p.height - p.margin;
   const inBounds = (x: number, y: number) =>
     x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  const imageAngleAt = (x: number, y: number): number | null => {
+    if (!p.field) return null;
+    const nx = (x - x0) / (x1 - x0);
+    const ny = (y - y0) / (y1 - y0);
+    const eps = 1 / 260;
+    const left = sampleImageField(p.field, nx - eps, ny, p.invert, p.imageContrast) ?? 0;
+    const right = sampleImageField(p.field, nx + eps, ny, p.invert, p.imageContrast) ?? 0;
+    const top = sampleImageField(p.field, nx, ny - eps, p.invert, p.imageContrast) ?? 0;
+    const bottom = sampleImageField(p.field, nx, ny + eps, p.invert, p.imageContrast) ?? 0;
+    const gx = right - left;
+    const gy = bottom - top;
+    if (Math.hypot(gx, gy) < 1e-5) return null;
+    return Math.atan2(gy, gx) + Math.PI / 2;
+  };
 
   const paths: Path[] = [];
   for (let i = 0; i < p.numParticles; i++) {
@@ -50,8 +71,11 @@ export function flowField(p: FlowFieldParams): Path[] {
     let y = y0 + rng() * (y1 - y0);
     const path: Path = [[x, y]];
     for (let s = 0; s < p.maxSteps; s++) {
-      const angle =
+      const procedural =
         perlin.noise2(x * p.noiseScale, y * p.noiseScale) * Math.PI * p.curl;
+      const imageAngle = imageAngleAt(x, y);
+      const influence = Math.max(0, Math.min(1, p.imageInfluence ?? 0.75));
+      const angle = imageAngle === null ? procedural : procedural * (1 - influence) + imageAngle * influence;
       x += Math.cos(angle) * p.stepLength;
       y += Math.sin(angle) * p.stepLength;
       if (!inBounds(x, y)) break;

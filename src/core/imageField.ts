@@ -7,6 +7,21 @@ export interface HeightField {
   sample(nx: number, ny: number): number;
 }
 
+export function sampleImageField(
+  field: HeightField | null | undefined,
+  nx: number,
+  ny: number,
+  invert = false,
+  contrast = 1,
+): number | null {
+  if (!field) return null;
+  let value = field.sample(nx, ny);
+  if (invert) value = 1 - value;
+  const c = Math.max(0.05, contrast);
+  value = (value - 0.5) * c + 0.5;
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
 /** Build a heightfield from raw image pixels using bilinear interpolation. */
 export function fieldFromImageData(img: ImageData): HeightField {
   const { width, height, data } = img;

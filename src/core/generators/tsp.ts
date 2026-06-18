@@ -1,6 +1,7 @@
 import { Path, Point, dist } from "../geometry";
 import { mulberry32, RNG } from "../rng";
 import { Perlin } from "../noise";
+import { HeightField, sampleImageField } from "../imageField";
 
 // Scatter stipple points with a noise-driven density, then connect them into a
 // single continuous path with a nearest-neighbour tour refined by 2-opt — the
@@ -15,6 +16,10 @@ export interface TspParams {
   densityScale: number;
   /** 2-opt refinement passes (0 = nearest-neighbour only) */
   twoOptPasses: number;
+  field?: HeightField | null;
+  invert?: boolean;
+  imageInfluence?: number;
+  imageContrast?: number;
 }
 
 export const tspDefaults: TspParams = {
@@ -25,6 +30,8 @@ export const tspDefaults: TspParams = {
   numPoints: 1200,
   densityScale: 0.01,
   twoOptPasses: 2,
+  imageInfluence: 1,
+  imageContrast: 1,
 };
 
 function stipplePoints(p: TspParams, rng: RNG): Point[] {
@@ -42,7 +49,16 @@ function stipplePoints(p: TspParams, rng: RNG): Point[] {
     const x = x0 + rng() * (x1 - x0);
     const y = y0 + rng() * (y1 - y0);
     // Rejection sampling: accept more often where the density field is high.
-    const density = (perlin.noise2(x * p.densityScale, y * p.densityScale) + 1) / 2;
+    const procedural = (perlin.noise2(x * p.densityScale, y * p.densityScale) + 1) / 2;
+    const image = sampleImageField(
+      p.field,
+      (x - x0) / (x1 - x0),
+      (y - y0) / (y1 - y0),
+      p.invert,
+      p.imageContrast,
+    );
+    const influence = Math.max(0, Math.min(1, p.imageInfluence ?? 1));
+    const density = image === null ? procedural : procedural * (1 - influence) + image * influence;
     if (rng() < density) points.push([x, y]);
   }
   return points;
