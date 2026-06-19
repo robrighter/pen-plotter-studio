@@ -1,5 +1,6 @@
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Drawing, Path, countPaths, drawnLength } from "./core/geometry";
 import { flowField, flowFieldDefaults } from "./core/generators/flowField";
@@ -16,7 +17,6 @@ import { spaceColonization, spaceColonizationDefaults } from "./core/generators/
 import { waveInterference, waveInterferenceDefaults } from "./core/generators/waveInterference";
 import { metaballs, metaballsDefaults } from "./core/generators/metaballs";
 import { hatching, hatchingDefaults } from "./core/generators/hatching";
-import { optimizePaths } from "./core/optimize";
 import { toSVG } from "./core/svg";
 import { MachineProfile, defaultProfile, toGCode } from "./core/gcode";
 import { renderPreview } from "./ui/preview";
@@ -26,7 +26,12 @@ import {
   numberControl,
   textControl,
 } from "./ui/controls";
-import { HeightField, fieldFromImageData } from "./core/imageField";
+import {
+  HeightField,
+  ImageFieldData,
+  heightFieldFromData,
+  imageFieldDataFromImageData,
+} from "./core/imageField";
 
 // --- Generator registry --------------------------------------------------
 
@@ -80,6 +85,16 @@ interface ProjectFile {
     showTravel?: boolean;
   };
   machineProfile?: Partial<MachineProfile>;
+}
+
+interface GenerateWorkerResponse {
+  jobId: number;
+  ok: boolean;
+  drawing?: Drawing;
+  travelBefore?: number;
+  travelAfter?: number;
+  durationMs?: number;
+  error?: string;
 }
 
 const generators: GeneratorDef[] = [
@@ -654,6 +669,13 @@ for (const g of generators) paramValues[g.id] = { ...g.defaults };
 const optimizeOn = { value: true };
 const showTravel = { value: false };
 let drawing: Drawing | null = null;
+let generateTimer: number | undefined;
+let generationWorker: Worker | null = null;
+let generationJobId = 0;
+let busyStartedAt = 0;
+let busyEstimateMs: number | null = null;
+let busyTimer: number | undefined;
+const generationDurations: Record<string, number> = {};
 
 // Per-generator pen colour (seeded from each generator's default) + paper colour.
 const colorValues: Record<string, string> = {};
@@ -662,6 +684,7 @@ const paperColor = { value: "#ffffff" };
 
 // Imported image heightfield (shared by image-driven generators).
 let imageField: HeightField | null = null;
+let imageFieldData: ImageFieldData | null = null;
 let imageName = "";
 let imageDataUrl = "";
 const imageInvert = { value: false };
@@ -692,6 +715,9 @@ const projectOpenInput = $<HTMLInputElement>("project-open-input");
 const drawingSubtitle = $<HTMLParagraphElement>("drawing-subtitle");
 const layerColor = $<HTMLSpanElement>("layer-color");
 const layerLabel = $<HTMLElement>("layer-label");
+const renderBusy = $<HTMLDivElement>("render-busy");
+const renderBusyTitle = $<HTMLElement>("render-busy-title");
+const renderBusyDetail = $<HTMLElement>("render-busy-detail");
 const exportStatus = document.createElement("div");
 exportStatus.className = "export-status";
 const appWindow = getCurrentWindow();
@@ -713,7 +739,7 @@ function buildPaperControls(): void {
       onChange: (v) => {
         paper.width = v;
         updatePaperMetrics();
-        regenerate();
+        scheduleGenerate();
       },
     }),
     numberControl({
@@ -725,7 +751,7 @@ function buildPaperControls(): void {
       onChange: (v) => {
         paper.height = v;
         updatePaperMetrics();
-        regenerate();
+        scheduleGenerate();
       },
     }),
     numberControl({
@@ -737,7 +763,7 @@ function buildPaperControls(): void {
       onChange: (v) => {
         paper.margin = v;
         updatePaperMetrics();
-        regenerate();
+        scheduleGenerate();
       },
     }),
   );
@@ -784,7 +810,7 @@ function buildGeneratorTabs(): void {
       buildGeneratorControls();
       buildImageControls();
       buildColorControls();
-      generate();
+      scheduleGenerate();
     });
     return button;
   });
@@ -803,6 +829,7 @@ function buildGeneratorControls(): void {
       value: values[p.key],
       onChange: (v) => {
         values[p.key] = v;
+        scheduleGenerate();
       },
     }),
   );
@@ -820,7 +847,8 @@ function setImageFromElement(img: HTMLImageElement, name: string): void {
   c.height = ch;
   const cx = c.getContext("2d")!;
   cx.drawImage(img, 0, 0, cw, ch);
-  imageField = fieldFromImageData(cx.getImageData(0, 0, cw, ch));
+  imageFieldData = imageFieldDataFromImageData(cx.getImageData(0, 0, cw, ch));
+  imageField = heightFieldFromData(imageFieldData);
   imageName = name;
   imageDataUrl = c.toDataURL("image/png");
 }
@@ -832,7 +860,7 @@ function loadImageFile(file: File): void {
     setImageFromElement(img, file.name);
     URL.revokeObjectURL(url);
     buildImageControls();
-    generate();
+    scheduleGenerate();
   };
   img.onerror = () => {
     URL.revokeObjectURL(url);
@@ -859,6 +887,7 @@ function loadImageDataUrl(dataUrl: string, name: string, invert: boolean): Promi
 
 function clearProjectImage(): void {
   imageField = null;
+  imageFieldData = null;
   imageName = "";
   imageDataUrl = "";
   imageInvert.value = false;
@@ -902,7 +931,7 @@ function buildImageControls(): void {
         value: imageInvert.value,
         onChange: (v) => {
           imageInvert.value = v;
-          generate();
+          scheduleGenerate();
         },
       }),
     );
@@ -912,7 +941,7 @@ function buildImageControls(): void {
     clear.addEventListener("click", () => {
       clearProjectImage();
       buildImageControls();
-      generate();
+      scheduleGenerate();
     });
     wrap.appendChild(clear);
   }
@@ -982,30 +1011,113 @@ function buildProfileControls(): void {
 
 // --- Core actions --------------------------------------------------------
 
-function generate(): void {
-  const g = activeGenerator();
-  let paths = g.run(paramValues[g.id]);
-  let travelBefore = 0;
-  let travelAfter = 0;
-  if (optimizeOn.value) {
-    const r = optimizePaths(paths);
-    paths = r.paths;
-    travelBefore = r.travelBefore;
-    travelAfter = r.travelAfter;
-  }
-  drawing = {
-    width: paper.width,
-    height: paper.height,
-    layers: [{ name: g.label, color: colorValues[g.id], paths }],
-  };
-  render();
-  updateStats(travelBefore, travelAfter);
+function formatDuration(ms: number): string {
+  if (ms < 1000) return "<1s";
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
 }
 
-/** Re-run only if we already have a drawing (e.g. after a paper change). */
-function regenerate(): void {
-  if (drawing) generate();
-  else render();
+function updateBusyDetail(): void {
+  if (renderBusy.hidden || busyStartedAt === 0) return;
+  const elapsed = performance.now() - busyStartedAt;
+  if (busyEstimateMs === null) {
+    renderBusyDetail.textContent = `Elapsed ${formatDuration(elapsed)} - estimating time...`;
+    return;
+  }
+  const remaining = Math.max(0, busyEstimateMs - elapsed);
+  renderBusyDetail.textContent = `Elapsed ${formatDuration(elapsed)} - about ${formatDuration(remaining)} remaining`;
+}
+
+function showBusy(label: string): void {
+  busyStartedAt = performance.now();
+  busyEstimateMs = generationDurations[activeId] ?? null;
+  renderBusyTitle.textContent = `Rendering ${label}`;
+  renderBusy.hidden = false;
+  updateBusyDetail();
+  if (busyTimer !== undefined) window.clearInterval(busyTimer);
+  busyTimer = window.setInterval(updateBusyDetail, 250);
+}
+
+function hideBusy(): void {
+  renderBusy.hidden = true;
+  busyStartedAt = 0;
+  busyEstimateMs = null;
+  if (busyTimer !== undefined) {
+    window.clearInterval(busyTimer);
+    busyTimer = undefined;
+  }
+}
+
+function recordGenerationDuration(generatorId: string, durationMs: number): void {
+  const previous = generationDurations[generatorId];
+  generationDurations[generatorId] =
+    previous === undefined ? durationMs : previous * 0.7 + durationMs * 0.3;
+}
+
+function generate(): void {
+  if (generateTimer !== undefined) {
+    window.clearTimeout(generateTimer);
+    generateTimer = undefined;
+  }
+  const g = activeGenerator();
+  const jobId = ++generationJobId;
+
+  generationWorker?.terminate();
+  generationWorker = new Worker(new URL("./generationWorker.ts", import.meta.url), {
+    type: "module",
+  });
+  showBusy(g.label);
+
+  generationWorker.onmessage = (event: MessageEvent<GenerateWorkerResponse>) => {
+    const response = event.data;
+    if (response.jobId !== generationJobId) return;
+
+    generationWorker?.terminate();
+    generationWorker = null;
+    hideBusy();
+
+    if (!response.ok || !response.drawing) {
+      setExportStatus(`Render failed: ${response.error ?? "Unknown error"}`, "error");
+      return;
+    }
+
+    if (typeof response.durationMs === "number") {
+      recordGenerationDuration(g.id, response.durationMs);
+    }
+    drawing = response.drawing;
+    render();
+    updateStats(response.travelBefore ?? 0, response.travelAfter ?? 0);
+  };
+
+  generationWorker.onerror = (event) => {
+    if (jobId !== generationJobId) return;
+    generationWorker?.terminate();
+    generationWorker = null;
+    hideBusy();
+    setExportStatus(`Render failed: ${event.message}`, "error");
+  };
+
+  generationWorker.postMessage({
+    jobId,
+    generatorId: g.id,
+    label: g.label,
+    color: colorValues[g.id],
+    params: { ...paramValues[g.id] },
+    paper: { ...paper },
+    imageFieldData,
+    imageInvert: imageInvert.value,
+    optimize: optimizeOn.value,
+  });
+}
+
+function scheduleGenerate(delay = 500): void {
+  if (generateTimer !== undefined) {
+    window.clearTimeout(generateTimer);
+  }
+  generateTimer = window.setTimeout(() => generate(), delay);
 }
 
 function render(): void {
@@ -1082,6 +1194,15 @@ function documentBaseName(): string {
     .replace(/\s+/g, " ")
     .trim();
   return cleaned || "untitled";
+}
+
+function ensureFileExtension(path: string, extension: string): string {
+  const escaped = extension.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\.${escaped}$`, "i").test(path) ? path : `${path}.${extension}`;
+}
+
+function ensureProjectExtension(path: string): string {
+  return ensureFileExtension(path, "ppstudio");
 }
 
 function normalizeDocumentName(): void {
@@ -1162,6 +1283,38 @@ async function exportFile(
   }
 }
 
+async function exportFileAs(
+  filename: string,
+  contents: string,
+  mime: string,
+  extension: "svg" | "gcode",
+  label: string,
+): Promise<string | null> {
+  const isTauri = "__TAURI_INTERNALS__" in window;
+  if (!isTauri) {
+    browserDownload(filename, contents, mime);
+    setExportStatus(`Downloaded ${filename}`);
+    return null;
+  }
+
+  try {
+    const selectedPath = await save({
+      title: `Export ${label}`,
+      defaultPath: filename,
+      filters: [{ name: label, extensions: [extension] }],
+    });
+    if (!selectedPath) return null;
+    const path = ensureFileExtension(selectedPath, extension);
+    const savedPath = await invoke<string>("save_file_to_path", { path, contents });
+    setExportStatus(`Saved to ${savedPath}`);
+    return savedPath;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setExportStatus(`Export failed: ${message}`, "error");
+    return null;
+  }
+}
+
 function resetGeneratorDefaults(): void {
   for (const g of generators) {
     paramValues[g.id] = { ...g.defaults };
@@ -1221,8 +1374,41 @@ function newProject(): void {
 async function saveProject(saveAs = false): Promise<void> {
   normalizeDocumentName();
   const contents = currentConfigJson();
+  const isTauri = "__TAURI_INTERNALS__" in window;
+
+  if ((saveAs || !currentProjectPath) && isTauri) {
+    try {
+      const selectedPath = await save({
+        title: "Save Pen Plotter Studio Project",
+        defaultPath: currentProjectPath || `${documentBaseName()}.ppstudio`,
+        filters: [{ name: "Pen Plotter Studio Project", extensions: ["ppstudio"] }],
+      });
+      if (!selectedPath) return;
+      currentProjectPath = ensureProjectExtension(selectedPath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setExportStatus(`Save dialog failed: ${message}`, "error");
+      return;
+    }
+  }
 
   if (!saveAs && currentProjectPath) {
+    try {
+      const savedPath = await invoke<string>("save_project_to_path", {
+        path: currentProjectPath,
+        contents,
+      });
+      currentProjectPath = savedPath;
+      setExportStatus(`Saved to ${savedPath}`);
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setExportStatus(`Save failed: ${message}`, "error");
+      return;
+    }
+  }
+
+  if (currentProjectPath) {
     try {
       const savedPath = await invoke<string>("save_project_to_path", {
         path: currentProjectPath,
@@ -1303,6 +1489,32 @@ async function openProjectFile(file: File): Promise<void> {
   }
 }
 
+async function openProjectDialog(): Promise<void> {
+  const isTauri = "__TAURI_INTERNALS__" in window;
+  if (!isTauri) {
+    projectOpenInput.click();
+    return;
+  }
+
+  try {
+    const selectedPath = await open({
+      title: "Open Pen Plotter Studio Project",
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Pen Plotter Studio Project", extensions: ["ppstudio"] }],
+    });
+    if (!selectedPath || Array.isArray(selectedPath)) return;
+    const contents = await invoke<string>("read_project_from_path", { path: selectedPath });
+    const config = JSON.parse(contents) as ProjectFile;
+    await applyProjectConfig(config);
+    currentProjectPath = selectedPath;
+    setExportStatus(`Opened ${selectedPath}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setExportStatus(`Open failed: ${message}`, "error");
+  }
+}
+
 function closeFileMenu(): void {
   fileMenu.hidden = true;
   fileMenuButton.setAttribute("aria-expanded", "false");
@@ -1331,7 +1543,7 @@ function init(): void {
     buildGeneratorControls();
     buildImageControls();
     buildColorControls();
-    generate();
+    scheduleGenerate();
   });
 
   buildPaperControls();
@@ -1341,7 +1553,6 @@ function init(): void {
   buildProfileControls();
   statsEl.parentElement?.appendChild(exportStatus);
 
-  $<HTMLButtonElement>("btn-generate").addEventListener("click", generate);
   documentNameInput.addEventListener("blur", normalizeDocumentName);
   documentNameInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -1365,7 +1576,7 @@ function init(): void {
   });
   $<HTMLButtonElement>("file-open").addEventListener("click", () => {
     closeFileMenu();
-    projectOpenInput.click();
+    void openProjectDialog();
   });
   $<HTMLButtonElement>("file-save").addEventListener("click", () => {
     closeFileMenu();
@@ -1397,12 +1608,12 @@ function init(): void {
     if (!g.seedKey) return;
     paramValues[g.id][g.seedKey] = Math.floor(Math.random() * 10000);
     buildGeneratorControls();
-    generate();
+    scheduleGenerate();
   });
 
   $<HTMLInputElement>("opt-optimize").addEventListener("change", (e) => {
     optimizeOn.value = (e.target as HTMLInputElement).checked;
-    regenerate();
+    scheduleGenerate();
   });
 
   document.getElementById("opt-show-travel")?.addEventListener("change", (e) => {
@@ -1412,12 +1623,24 @@ function init(): void {
 
   $<HTMLButtonElement>("btn-export-svg").addEventListener("click", () => {
     if (!drawing) return;
-    void exportFile(`${documentBaseName()}.svg`, toSVG(drawing), "image/svg+xml");
+    void exportFileAs(
+      `${documentBaseName()}.svg`,
+      toSVG(drawing),
+      "image/svg+xml",
+      "svg",
+      "SVG",
+    );
   });
 
   $<HTMLButtonElement>("btn-export-gcode").addEventListener("click", () => {
     if (!drawing) return;
-    void exportFile(`${documentBaseName()}.gcode`, toGCode(drawing, profile), "text/plain");
+    void exportFileAs(
+      `${documentBaseName()}.gcode`,
+      toGCode(drawing, profile),
+      "text/plain",
+      "gcode",
+      "GCode",
+    );
   });
 
   window.addEventListener("resize", render);

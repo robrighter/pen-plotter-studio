@@ -699,6 +699,57 @@ button.secondary {
   font-size: 13px;
 }
 
+.render-busy {
+  position: absolute;
+  right: 24px;
+  bottom: 22px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  max-width: min(360px, calc(100% - 48px));
+  padding: 10px 12px;
+  border: 1px solid rgba(87, 199, 194, 0.44);
+  border-radius: 8px;
+  background: rgba(24, 25, 27, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.render-busy[hidden] {
+  display: none;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 3px solid rgba(87, 199, 194, 0.22);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+}
+
+.render-busy strong,
+.render-busy span {
+  display: block;
+}
+
+.render-busy strong {
+  font-size: 13px;
+}
+
+.render-busy span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .pill {
   display: inline-flex;
   align-items: center;

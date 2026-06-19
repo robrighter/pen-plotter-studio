@@ -102,11 +102,35 @@ Build the Tauri desktop app and installers:
 npm run tauri build
 ```
 
-On Windows, successful Tauri release builds produce:
+Build Windows installers for both Intel/AMD x64 and Windows ARM64:
 
-- `src-tauri/target/release/pen-plotter-app.exe`
-- `src-tauri/target/release/bundle/msi/`
-- `src-tauri/target/release/bundle/nsis/`
+```bash
+npm run build:windows
+```
+
+Build a single Windows architecture:
+
+```bash
+npm run build:windows:x64
+npm run build:windows:arm64
+```
+
+The equivalent batch wrappers are:
+
+```bat
+scripts\build-windows-x64.cmd
+scripts\build-windows-arm64.cmd
+scripts\build-windows-all.cmd
+```
+
+On Windows, successful architecture-specific release builds produce:
+
+- `src-tauri/target/x86_64-pc-windows-msvc/release/pen-plotter-app.exe`
+- `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/`
+- `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/`
+- `src-tauri/target/aarch64-pc-windows-msvc/release/pen-plotter-app.exe`
+- `src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/`
+- `src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/`
 
 For more Windows packaging notes, see `BUILD-WINDOWS.md`.
 

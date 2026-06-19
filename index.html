@@ -97,10 +97,7 @@
           <div id="generator-controls"></div>
           <div id="image-controls"></div>
           <div id="color-controls"></div>
-          <div class="row">
-            <button id="btn-randomize" class="secondary">Randomize seed</button>
-            <button id="btn-generate">Generate</button>
-          </div>
+          <button id="btn-randomize" class="secondary full-width">Randomize seed</button>
         </section>
       </aside>
 
@@ -117,6 +114,13 @@
             <div>
               <span>Active layer</span>
               <strong id="layer-label">No drawing yet</strong>
+            </div>
+          </div>
+          <div id="render-busy" class="render-busy" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <div>
+              <strong id="render-busy-title">Rendering</strong>
+              <span id="render-busy-detail">Estimating time...</span>
             </div>
           </div>
         </section>

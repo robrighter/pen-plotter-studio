@@ -7,6 +7,12 @@ export interface HeightField {
   sample(nx: number, ny: number): number;
 }
 
+export interface ImageFieldData {
+  width: number;
+  height: number;
+  gray: Float32Array;
+}
+
 export function sampleImageField(
   field: HeightField | null | undefined,
   nx: number,
@@ -22,10 +28,8 @@ export function sampleImageField(
   return value < 0 ? 0 : value > 1 ? 1 : value;
 }
 
-/** Build a heightfield from raw image pixels using bilinear interpolation. */
-export function fieldFromImageData(img: ImageData): HeightField {
+export function imageFieldDataFromImageData(img: ImageData): ImageFieldData {
   const { width, height, data } = img;
-  // Precompute perceptual-luminance greyscale once.
   const gray = new Float32Array(width * height);
   for (let i = 0; i < width * height; i++) {
     const r = data[i * 4];
@@ -33,6 +37,11 @@ export function fieldFromImageData(img: ImageData): HeightField {
     const b = data[i * 4 + 2];
     gray[i] = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   }
+  return { width, height, gray };
+}
+
+export function heightFieldFromData(fieldData: ImageFieldData): HeightField {
+  const { width, height, gray } = fieldData;
 
   const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -55,4 +64,9 @@ export function fieldFromImageData(img: ImageData): HeightField {
       return top + (bot - top) * ty;
     },
   };
+}
+
+/** Build a heightfield from raw image pixels using bilinear interpolation. */
+export function fieldFromImageData(img: ImageData): HeightField {
+  return heightFieldFromData(imageFieldDataFromImageData(img));
 }

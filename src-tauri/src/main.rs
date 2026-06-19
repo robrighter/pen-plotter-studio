@@ -2,8 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
-    env,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -23,7 +22,8 @@ fn save_export(filename: String, contents: String) -> Result<String, String> {
         return Err("Only SVG, GCode, and PPStudio exports are supported.".to_string());
     }
 
-    let mut dir = downloads_dir().unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let mut dir = downloads_dir()
+        .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     dir.push("Pen Plotter Studio");
     fs::create_dir_all(&dir).map_err(|err| format!("Could not create export folder: {err}"))?;
 
@@ -46,11 +46,53 @@ fn save_project_to_path(path: String, contents: String) -> Result<String, String
     }
 
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|err| format!("Could not create project folder: {err}"))?;
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Could not create project folder: {err}"))?;
     }
 
     fs::write(&path, contents).map_err(|err| format!("Could not save project file: {err}"))?;
     Ok(path.display().to_string())
+}
+
+#[tauri::command]
+fn save_file_to_path(path: String, contents: String) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    let extension = allowed_extension(&path)?;
+
+    if !matches!(extension.as_str(), "svg" | "gcode" | "ppstudio") {
+        return Err("Only SVG, GCode, and PPStudio files can be saved.".to_string());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Could not create export folder: {err}"))?;
+    }
+
+    fs::write(&path, contents).map_err(|err| format!("Could not save file: {err}"))?;
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+fn read_project_from_path(path: String) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    if extension != "ppstudio" {
+        return Err("Only PPStudio project files can be opened.".to_string());
+    }
+
+    fs::read_to_string(&path).map_err(|err| format!("Could not open project file: {err}"))
+}
+
+fn allowed_extension(path: &Path) -> Result<String, String> {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .ok_or_else(|| "File path must include an extension.".to_string())
 }
 
 fn downloads_dir() -> Option<PathBuf> {
@@ -102,7 +144,13 @@ fn unique_path(dir: &Path, filename: &str) -> PathBuf {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![save_export, save_project_to_path])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            save_export,
+            save_file_to_path,
+            save_project_to_path,
+            read_project_from_path
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

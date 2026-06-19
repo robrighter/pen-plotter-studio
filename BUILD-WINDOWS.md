@@ -1,22 +1,23 @@
-# Building the standalone Windows app (.msi / .exe)
+# Building the Standalone Windows App (.msi / .exe)
 
-Tauri builds the native app on the platform you're targeting, so a Windows
-installer is built **on Windows**, not cross-compiled from WSL. The repo is
-already configured (icons + bundling enabled); these are the host-setup steps.
+Tauri builds the native app on the platform you're targeting, so Windows
+installers should be built on Windows. The repo is configured with icons and
+bundling enabled; these are the host setup and build steps.
 
-## 1. Install prerequisites (one time, on Windows)
+## 1. Install Prerequisites
 
-1. **Visual Studio C++ Build Tools** — the MSVC compiler/linker Rust needs.
+1. **Visual Studio C++ Build Tools**: the MSVC compiler/linker Rust needs.
    Install "Build Tools for Visual Studio" and check the
    **"Desktop development with C++"** workload.
    <https://visualstudio.microsoft.com/visual-cpp-build-tools/>
-2. **Rust** (MSVC toolchain) via rustup: <https://rustup.rs/>
-   The default `stable-x86_64-pc-windows-msvc` is what you want.
-3. **Node.js** (LTS): <https://nodejs.org/>
-4. **WebView2 runtime** — preinstalled on Windows 10/11. If missing, get the
+2. **Rust** via rustup: <https://rustup.rs/>
+   The build script installs the required `x86_64-pc-windows-msvc` and
+   `aarch64-pc-windows-msvc` targets if they are missing.
+3. **Node.js** LTS: <https://nodejs.org/>
+4. **WebView2 runtime**: preinstalled on Windows 10/11. If missing, install the
    Evergreen runtime from Microsoft.
 
-The WiX (.msi) and NSIS (.exe) bundlers are downloaded automatically by the
+The WiX `.msi` and NSIS `.exe` bundlers are downloaded automatically by the
 Tauri CLI on first build, so an internet connection is needed once.
 
 Verify in a fresh PowerShell:
@@ -25,10 +26,10 @@ Verify in a fresh PowerShell:
 node --version ; npm --version ; cargo --version ; rustc --version
 ```
 
-## 2. Get the code onto a native Windows path
+## 2. Use a Native Windows Path
 
-Building over the `\\wsl.localhost\...` network path works but is slow and
-occasionally flaky for Rust. Copy it to a real drive first:
+Building over a `\\wsl.localhost\...` network path works but is slow and can be
+flaky for Rust. Copy the project to a real Windows drive first:
 
 ```powershell
 robocopy "\\wsl.localhost\Ubuntu\home\robrighter\development\pen-plotter-app" `
@@ -36,41 +37,68 @@ robocopy "\\wsl.localhost\Ubuntu\home\robrighter\development\pen-plotter-app" `
 cd C:\dev\pen-plotter-app
 ```
 
-(`/XD` skips the big/host-specific folders; they get regenerated on Windows.)
+`/XD` skips large host-specific folders; they are regenerated on Windows.
 
 ## 3. Build
 
-Easiest — use the helper script (checks tools, installs, builds):
+Build both Intel/AMD x64 and Windows ARM64 installers:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
+npm run build:windows
 ```
 
-Or do it by hand:
+Build only one architecture:
 
 ```powershell
-npm install
-npm run tauri build
+npm run build:windows:x64
+npm run build:windows:arm64
 ```
 
-If the linker isn't found, run the build from **"Developer PowerShell for VS"**
-(it puts `link.exe` on PATH), or just re-open PowerShell after installing the
-C++ Build Tools.
+Equivalent direct PowerShell commands:
 
-## 4. Where the artifacts land
-
-```
-src-tauri\target\release\pen-plotter-app.exe        <- standalone executable
-src-tauri\target\release\bundle\msi\*.msi           <- MSI installer
-src-tauri\target\release\bundle\nsis\*-setup.exe    <- NSIS setup installer
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch all
+powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch x64
+powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch arm64
 ```
 
-Double-click the `.msi` (or run the standalone `.exe`) to launch Pen Plotter
-Studio as a real desktop window.
+Equivalent batch wrappers:
+
+```powershell
+scripts\build-windows-x64.cmd
+scripts\build-windows-arm64.cmd
+scripts\build-windows-all.cmd
+```
+
+To skip `npm install` when dependencies are already current:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch all -SkipInstall
+```
+
+## 4. Where Artifacts Land
+
+Intel/AMD x64:
+
+```text
+src-tauri\target\x86_64-pc-windows-msvc\release\pen-plotter-app.exe
+src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\*.msi
+src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*-setup.exe
+```
+
+Windows ARM64:
+
+```text
+src-tauri\target\aarch64-pc-windows-msvc\release\pen-plotter-app.exe
+src-tauri\target\aarch64-pc-windows-msvc\release\bundle\msi\*.msi
+src-tauri\target\aarch64-pc-windows-msvc\release\bundle\nsis\*-setup.exe
+```
+
+Double-click the `.msi` or run the standalone `.exe` to launch Pen Plotter
+Studio as a desktop window.
 
 ## Notes
 
 - App identity (name, version, icons) lives in `src-tauri/tauri.conf.json`.
 - To build only one installer type, set `bundle.targets` to e.g. `["msi"]`.
-- The first Rust build is slow (compiles all dependencies); later builds are
-  incremental and fast.
+- The first Rust build is slow; later builds are incremental and faster.

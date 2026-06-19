@@ -7,10 +7,14 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1 -Arch all",
+    "build:windows:x64": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1 -Arch x64",
+    "build:windows:arm64": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1 -Arch arm64"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2"
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.7.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

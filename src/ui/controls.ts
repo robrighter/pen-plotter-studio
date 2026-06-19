@@ -52,6 +52,7 @@ export function numberControl(o: NumberControlOpts): HTMLElement {
   };
 
   range.addEventListener("input", () => emit(parseFloat(range.value), range));
+  box.addEventListener("input", () => emit(parseFloat(box.value), box));
   box.addEventListener("change", () => emit(parseFloat(box.value), box));
 
   row.appendChild(range);

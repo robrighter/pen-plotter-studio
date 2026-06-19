@@ -1,14 +1,38 @@
 # Build the standalone Windows app (.msi + .exe installers).
 # Run this in PowerShell on the WINDOWS host (not inside WSL).
 #
-#   powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch all
+#   powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch x64
+#   powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch arm64
 #
 # Prereqs (see BUILD-WINDOWS.md): Node.js, Rust (MSVC toolchain),
 # Visual Studio C++ Build Tools, WebView2 runtime.
 
+param(
+  [ValidateSet("all", "x64", "arm64")]
+  [string]$Arch = "all",
+  [switch]$SkipInstall
+)
+
 $ErrorActionPreference = "Stop"
 
 function Have($name) { $null -ne (Get-Command $name -ErrorAction SilentlyContinue) }
+
+function TargetForArch($arch) {
+  switch ($arch) {
+    "x64" { "x86_64-pc-windows-msvc" }
+    "arm64" { "aarch64-pc-windows-msvc" }
+    default { throw "Unsupported arch: $arch" }
+  }
+}
+
+function LabelForArch($arch) {
+  switch ($arch) {
+    "x64" { "Intel/AMD x64" }
+    "arm64" { "Windows ARM64" }
+    default { throw "Unsupported arch: $arch" }
+  }
+}
 
 Write-Host "== Checking prerequisites ==" -ForegroundColor Cyan
 $ok = $true
@@ -44,16 +68,32 @@ if ($root -like "\\wsl*" -or $root -like "\\\\wsl*") {
 }
 
 Set-Location $root
-Write-Host "`n== Installing JS dependencies ==" -ForegroundColor Cyan
-npm install
+if (-not $SkipInstall) {
+  Write-Host "`n== Installing JS dependencies ==" -ForegroundColor Cyan
+  npm install
+}
 
-Write-Host "`n== Building (frontend + Tauri bundle) ==" -ForegroundColor Cyan
-npm run tauri build
+$arches = if ($Arch -eq "all") { @("x64", "arm64") } else { @($Arch) }
 
-$bundle = Join-Path $root "src-tauri\target\release\bundle"
+foreach ($archName in $arches) {
+  $target = TargetForArch $archName
+  $label = LabelForArch $archName
+
+  Write-Host "`n== Ensuring Rust target: $target ==" -ForegroundColor Cyan
+  rustup target add $target
+
+  Write-Host "`n== Building $label ($target) ==" -ForegroundColor Cyan
+  npm run tauri -- build --target $target
+
+  $release = Join-Path $root "src-tauri\target\$target\release"
+  $bundle = Join-Path $release "bundle"
+
+  Write-Host "`n== $label build complete ==" -ForegroundColor Green
+  Write-Host "Installers are in:" -ForegroundColor Green
+  Write-Host "  $bundle\msi\   (.msi)"
+  Write-Host "  $bundle\nsis\  (.exe setup)"
+  Write-Host "Standalone exe:"
+  Write-Host "  $release\pen-plotter-app.exe"
+}
+
 Write-Host "`n== Done ==" -ForegroundColor Green
-Write-Host "Installers are in:" -ForegroundColor Green
-Write-Host "  $bundle\msi\   (.msi)"
-Write-Host "  $bundle\nsis\  (.exe setup)"
-Write-Host "Standalone exe:"
-Write-Host "  $root\src-tauri\target\release\pen-plotter-app.exe"
