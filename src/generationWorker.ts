@@ -1,4 +1,4 @@
-import { Drawing, Path } from "./core/geometry";
+import { Drawing, Layer, Path } from "./core/geometry";
 import { optimizePaths } from "./core/optimize";
 import { HeightField, ImageFieldData, heightFieldFromData } from "./core/imageField";
 import { flowField, flowFieldDefaults } from "./core/generators/flowField";
@@ -15,6 +15,8 @@ import { spaceColonization, spaceColonizationDefaults } from "./core/generators/
 import { waveInterference, waveInterferenceDefaults } from "./core/generators/waveInterference";
 import { metaballs, metaballsDefaults } from "./core/generators/metaballs";
 import { hatching, hatchingDefaults } from "./core/generators/hatching";
+import { ribbonWeave, ribbonWeaveDefaults, ribbonWeaveLayers } from "./core/generators/ribbonWeave";
+import { harmonicRibbon, harmonicRibbonDefaults } from "./core/generators/harmonicRibbon";
 
 interface GenerateRequest {
   jobId: number;
@@ -77,9 +79,25 @@ function runGenerator(request: GenerateRequest, field: HeightField | null): Path
       return metaballs({ ...metaballsDefaults, ...base });
     case "hatching":
       return hatching({ ...hatchingDefaults, ...base });
+    case "ribbon":
+      return ribbonWeave({ ...ribbonWeaveDefaults, ...base });
+    case "harmonic-ribbon":
+      return harmonicRibbon({ ...harmonicRibbonDefaults, ...base });
     default:
       throw new Error(`Unknown generator: ${request.generatorId}`);
   }
+}
+
+function optimizeLayers(layers: Layer[]): { layers: Layer[]; travelBefore: number; travelAfter: number } {
+  let travelBefore = 0;
+  let travelAfter = 0;
+  const optimizedLayers = layers.map((layer) => {
+    const optimized = optimizePaths(layer.paths);
+    travelBefore += optimized.travelBefore;
+    travelAfter += optimized.travelAfter;
+    return { ...layer, paths: optimized.paths };
+  });
+  return { layers: optimizedLayers, travelBefore, travelAfter };
 }
 
 self.onmessage = (event: MessageEvent<GenerateRequest>) => {
@@ -87,22 +105,49 @@ self.onmessage = (event: MessageEvent<GenerateRequest>) => {
   const started = performance.now();
   try {
     const field = request.imageFieldData ? heightFieldFromData(request.imageFieldData) : null;
-    let paths = runGenerator(request, field);
     let travelBefore = 0;
     let travelAfter = 0;
+    let drawing: Drawing;
 
-    if (request.optimize) {
-      const optimized = optimizePaths(paths);
-      paths = optimized.paths;
-      travelBefore = optimized.travelBefore;
-      travelAfter = optimized.travelAfter;
+    if (request.generatorId === "ribbon") {
+      let layers = ribbonWeaveLayers(
+        {
+          ...ribbonWeaveDefaults,
+          ...request.params,
+          width: request.paper.width,
+          height: request.paper.height,
+          margin: request.paper.margin,
+        },
+        request.color,
+      );
+      if (request.optimize) {
+        const optimized = optimizeLayers(layers);
+        layers = optimized.layers;
+        travelBefore = optimized.travelBefore;
+        travelAfter = optimized.travelAfter;
+      }
+      drawing = {
+        width: request.paper.width,
+        height: request.paper.height,
+        layers,
+      };
+    } else {
+      let paths = runGenerator(request, field);
+
+      if (request.optimize) {
+        const optimized = optimizePaths(paths);
+        paths = optimized.paths;
+        travelBefore = optimized.travelBefore;
+        travelAfter = optimized.travelAfter;
+      }
+
+      drawing = {
+        width: request.paper.width,
+        height: request.paper.height,
+        layers: [{ name: request.label, color: request.color, paths }],
+      };
     }
 
-    const drawing: Drawing = {
-      width: request.paper.width,
-      height: request.paper.height,
-      layers: [{ name: request.label, color: request.color, paths }],
-    };
     const response: GenerateResponse = {
       jobId: request.jobId,
       ok: true,

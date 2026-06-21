@@ -17,6 +17,8 @@ import { spaceColonization, spaceColonizationDefaults } from "./core/generators/
 import { waveInterference, waveInterferenceDefaults } from "./core/generators/waveInterference";
 import { metaballs, metaballsDefaults } from "./core/generators/metaballs";
 import { hatching, hatchingDefaults } from "./core/generators/hatching";
+import { ribbonWeave, ribbonWeaveDefaults } from "./core/generators/ribbonWeave";
+import { harmonicRibbon, harmonicRibbonDefaults } from "./core/generators/harmonicRibbon";
 import { toSVG } from "./core/svg";
 import { MachineProfile, defaultProfile, toGCode } from "./core/gcode";
 import { renderPreview } from "./ui/preview";
@@ -648,6 +650,84 @@ const generators: GeneratorDef[] = [
         margin: paper.margin,
         field: imageField,
         invert: imageInvert.value,
+      }),
+  },
+  {
+    id: "ribbon",
+    label: "Interlaced Ribbon Weave",
+    color: "#101820",
+    defaults: {
+      seed: ribbonWeaveDefaults.seed,
+      trackCount: ribbonWeaveDefaults.trackCount,
+      spacing: ribbonWeaveDefaults.spacing,
+      loopScale: ribbonWeaveDefaults.loopScale,
+      bend: ribbonWeaveDefaults.bend,
+      hatchSpacing: ribbonWeaveDefaults.hatchSpacing,
+      hatchWidth: ribbonWeaveDefaults.hatchWidth,
+      hatchHeight: ribbonWeaveDefaults.hatchHeight,
+      lineJitter: ribbonWeaveDefaults.lineJitter,
+    },
+    params: [
+      { key: "seed", label: "Seed", min: 0, max: 9999, step: 1 },
+      { key: "trackCount", label: "Tracks", min: 6, max: 64, step: 1 },
+      { key: "spacing", label: "Track spacing", min: 0.6, max: 3.5, step: 0.05 },
+      { key: "loopScale", label: "Loop scale", min: 0.55, max: 1.35, step: 0.05 },
+      { key: "bend", label: "Crossing bend", min: 0, max: 1, step: 0.05 },
+      { key: "hatchSpacing", label: "Hatch spacing", min: 0.7, max: 4, step: 0.05 },
+      { key: "hatchWidth", label: "Hatch width", min: 20, max: 180, step: 1 },
+      { key: "hatchHeight", label: "Hatch height", min: 20, max: 260, step: 1 },
+      { key: "lineJitter", label: "Line jitter", min: 0, max: 1.2, step: 0.02 },
+    ],
+    seedKey: "seed",
+    run: (p) =>
+      ribbonWeave({
+        ...ribbonWeaveDefaults,
+        ...p,
+        width: paper.width,
+        height: paper.height,
+        margin: paper.margin,
+      }),
+  },
+  {
+    id: "harmonic-ribbon",
+    label: "Harmonic Ribbon Mesh",
+    color: "#006ee6",
+    defaults: {
+      seed: harmonicRibbonDefaults.seed,
+      ribbons: harmonicRibbonDefaults.ribbons,
+      linesPerRibbon: harmonicRibbonDefaults.linesPerRibbon,
+      length: harmonicRibbonDefaults.length,
+      ribbonWidth: harmonicRibbonDefaults.ribbonWidth,
+      amplitude: harmonicRibbonDefaults.amplitude,
+      twist: harmonicRibbonDefaults.twist,
+      frequency: harmonicRibbonDefaults.frequency,
+      rotation: harmonicRibbonDefaults.rotation,
+      spread: harmonicRibbonDefaults.spread,
+      phaseDrift: harmonicRibbonDefaults.phaseDrift,
+      lineJitter: harmonicRibbonDefaults.lineJitter,
+    },
+    params: [
+      { key: "seed", label: "Seed", min: 0, max: 9999, step: 1 },
+      { key: "ribbons", label: "Ribbon groups", min: 1, max: 5, step: 1 },
+      { key: "linesPerRibbon", label: "Lines per ribbon", min: 20, max: 240, step: 5 },
+      { key: "length", label: "Ribbon length", min: 50, max: 220, step: 1 },
+      { key: "ribbonWidth", label: "Ribbon width", min: 12, max: 95, step: 1 },
+      { key: "amplitude", label: "Wave amplitude", min: 0, max: 70, step: 1 },
+      { key: "twist", label: "Twist", min: 0, max: 1, step: 0.01 },
+      { key: "frequency", label: "Wave frequency", min: 0.25, max: 3, step: 0.05 },
+      { key: "rotation", label: "Rotation", min: -90, max: 90, step: 1 },
+      { key: "spread", label: "Group spread", min: 0, max: 90, step: 1 },
+      { key: "phaseDrift", label: "Phase drift", min: 0, max: 1, step: 0.01 },
+      { key: "lineJitter", label: "Line jitter", min: 0, max: 1.5, step: 0.05 },
+    ],
+    seedKey: "seed",
+    run: (p) =>
+      harmonicRibbon({
+        ...harmonicRibbonDefaults,
+        ...p,
+        width: paper.width,
+        height: paper.height,
+        margin: paper.margin,
       }),
   },
 ];
