@@ -26,7 +26,9 @@ import {
   checkControl,
   colorControl,
   numberControl,
+  selectControl,
   textControl,
+  toggleControl,
 } from "./ui/controls";
 import {
   HeightField,
@@ -37,12 +39,39 @@ import {
 
 // --- Generator registry --------------------------------------------------
 
-interface ParamDef {
+/** Numeric slider — the default control when `kind` is omitted. `randomize`
+ *  optionally narrows the range "Surprise me" draws from (defaults to min/max). */
+interface NumberParamDef {
+  kind?: "number";
   key: string;
   label: string;
   min: number;
   max: number;
   step: number;
+  randomize?: [number, number];
+}
+
+/** Discrete choice rendered as a dropdown. Value stays numeric. */
+interface SelectParamDef {
+  kind: "select";
+  key: string;
+  label: string;
+  options: { label: string; value: number }[];
+}
+
+/** On/off switch. Value is 0 or 1. */
+interface ToggleParamDef {
+  kind: "toggle";
+  key: string;
+  label: string;
+}
+
+type ParamDef = NumberParamDef | SelectParamDef | ToggleParamDef;
+
+/** A named snapshot of param values applied on top of the current ones. */
+interface GeneratorPreset {
+  name: string;
+  values: Record<string, number>;
 }
 
 interface GeneratorDef {
@@ -57,6 +86,10 @@ interface GeneratorDef {
   seedKey?: string;
   /** generator can be driven by an imported image heightfield */
   usesImage?: boolean;
+  /** curated "looks" the user can jump to from the preset dropdown */
+  presets?: GeneratorPreset[];
+  /** keys "Surprise me" should leave untouched (e.g. resolution/grid budgets) */
+  lockRandom?: string[];
 }
 
 interface ProjectPaper {
@@ -126,6 +159,12 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["numParticles", "maxSteps"],
+    presets: [
+      { name: "Wispy threads", values: { numParticles: 400, stepLength: 1.5, maxSteps: 420, noiseScale: 0.006, curl: 2 } },
+      { name: "Dense weave", values: { numParticles: 1600, stepLength: 0.8, maxSteps: 300, noiseScale: 0.012, curl: 3 } },
+      { name: "Bold swirls", values: { numParticles: 220, stepLength: 2.6, maxSteps: 600, noiseScale: 0.004, curl: 4.5 } },
+    ],
     run: (p) =>
       flowField({
         ...flowFieldDefaults,
@@ -174,6 +213,7 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["numPoints", "twoOptPasses"],
     run: (p) =>
       tsp({
         ...tspDefaults,
@@ -205,6 +245,12 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["resolution"],
+    presets: [
+      { name: "Joy Division", values: { numLines: 60, resolution: 280, amplitude: 45, noiseScale: 0.02 } },
+      { name: "Calm hills", values: { numLines: 28, resolution: 220, amplitude: 18, noiseScale: 0.01 } },
+      { name: "Jagged peaks", values: { numLines: 110, resolution: 360, amplitude: 95, noiseScale: 0.035 } },
+    ],
     run: (p) =>
       ridgeline({
         ...ridgelineDefaults,
@@ -248,6 +294,7 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["gridSize", "iterations"],
     run: (p) =>
       reactionDiffusion({
         ...reactionDiffusionDefaults,
@@ -295,6 +342,12 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["gridSize"],
+    presets: [
+      { name: "Rolling terrain", values: { levels: 14, noiseScale: 0.012, octaves: 4, persistence: 0.5, lacunarity: 2, ridgeStrength: 0, islandFalloff: 0.3, smoothing: 1 } },
+      { name: "Sharp ridges", values: { levels: 20, noiseScale: 0.02, octaves: 5, persistence: 0.6, lacunarity: 2.4, ridgeStrength: 1.1, islandFalloff: 0, smoothing: 0 } },
+      { name: "Lone island", values: { levels: 12, noiseScale: 0.01, octaves: 4, persistence: 0.45, lacunarity: 2, ridgeStrength: 0.3, islandFalloff: 1.2, smoothing: 1 } },
+    ],
     run: (p) =>
       topographic({
         ...topographicDefaults,
@@ -340,6 +393,7 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["iterations", "maxPoints"],
     run: (p) =>
       differentialGrowth({
         ...differentialGrowthDefaults,
@@ -370,7 +424,16 @@ const generators: GeneratorDef[] = [
       { key: "seed", label: "Seed", min: 0, max: 9999, step: 1 },
       { key: "points", label: "Cells", min: 10, max: 220, step: 5 },
       { key: "relaxationPasses", label: "Relaxation passes", min: 0, max: 5, step: 1 },
-      { key: "drawMode", label: "Mode (0 border, 1 inset, 2 centers)", min: 0, max: 2, step: 1 },
+      {
+        kind: "select",
+        key: "drawMode",
+        label: "Draw mode",
+        options: [
+          { label: "Cell borders", value: 0 },
+          { label: "Inset cells", value: 1 },
+          { label: "Centers only", value: 2 },
+        ],
+      },
       { key: "jitter", label: "Jitter", min: 0, max: 1, step: 0.05 },
       { key: "inset", label: "Inset", min: 0, max: 0.45, step: 0.01 },
       { key: "noiseWarp", label: "Noise warp", min: 0, max: 3, step: 0.1 },
@@ -379,6 +442,11 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    presets: [
+      { name: "Tight cells", values: { points: 140, relaxationPasses: 3, drawMode: 0, jitter: 0.1, inset: 0, noiseWarp: 0.3 } },
+      { name: "Loose & warped", values: { points: 60, relaxationPasses: 0, drawMode: 1, jitter: 0.6, inset: 0.25, noiseWarp: 1.8 } },
+      { name: "Stipple centers", values: { points: 200, relaxationPasses: 2, drawMode: 2, jitter: 0.2, inset: 0, noiseWarp: 0.5 } },
+    ],
     run: (p) =>
       voronoiCells({
         ...voronoiCellsDefaults,
@@ -410,20 +478,35 @@ const generators: GeneratorDef[] = [
     },
     params: [
       { key: "seed", label: "Seed", min: 0, max: 9999, step: 1 },
-      { key: "fieldType", label: "Field type (0 vortex, 1 source, 2 mixed)", min: 0, max: 2, step: 1 },
+      {
+        kind: "select",
+        key: "fieldType",
+        label: "Field type",
+        options: [
+          { label: "Vortex", value: 0 },
+          { label: "Source", value: 1 },
+          { label: "Mixed", value: 2 },
+        ],
+      },
       { key: "sourceCount", label: "Sources", min: 1, max: 14, step: 1 },
       { key: "lineCount", label: "Lines", min: 20, max: 800, step: 20 },
       { key: "stepLength", label: "Step length", min: 0.4, max: 4, step: 0.1 },
       { key: "maxSteps", label: "Max steps", min: 40, max: 1000, step: 20 },
       { key: "fieldScale", label: "Field scale", min: 0, max: 3, step: 0.1 },
       { key: "spacing", label: "Spacing", min: 0.5, max: 8, step: 0.1 },
-      { key: "drawBidirectional", label: "Bidirectional", min: 0, max: 1, step: 1 },
+      { kind: "toggle", key: "drawBidirectional", label: "Bidirectional" },
       { key: "imageInfluence", label: "Image influence", min: 0, max: 1, step: 0.05 },
       { key: "imageContrast", label: "Image contrast", min: 0.2, max: 3, step: 0.05 },
-      { key: "imageTangent", label: "Image tangent mode", min: 0, max: 1, step: 1 },
+      { kind: "toggle", key: "imageTangent", label: "Follow image tangent" },
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["lineCount", "maxSteps"],
+    presets: [
+      { name: "Single vortex", values: { fieldType: 0, sourceCount: 1, lineCount: 320, stepLength: 1.4, spacing: 2, fieldScale: 1, drawBidirectional: 0 } },
+      { name: "Source spray", values: { fieldType: 1, sourceCount: 5, lineCount: 420, stepLength: 1.2, spacing: 1.5, fieldScale: 1.2, drawBidirectional: 1 } },
+      { name: "Turbulent mix", values: { fieldType: 2, sourceCount: 8, lineCount: 600, stepLength: 1, spacing: 1.2, fieldScale: 1.6, drawBidirectional: 1 } },
+    ],
     run: (p) =>
       streamlines({
         ...streamlinesDefaults,
@@ -457,7 +540,16 @@ const generators: GeneratorDef[] = [
       { key: "points", label: "Points", min: 50, max: 3000, step: 50 },
       { key: "angleDegrees", label: "Angle degrees", min: 120, max: 150, step: 0.01 },
       { key: "radialScale", label: "Radial scale", min: 0.5, max: 4, step: 0.05 },
-      { key: "markMode", label: "Mode (0 circles, 1 ticks, 2 spirals)", min: 0, max: 2, step: 1 },
+      {
+        kind: "select",
+        key: "markMode",
+        label: "Mark mode",
+        options: [
+          { label: "Circles", value: 0 },
+          { label: "Ticks", value: 1 },
+          { label: "Spirals", value: 2 },
+        ],
+      },
       { key: "markSize", label: "Mark size", min: 0.2, max: 5, step: 0.1 },
       { key: "noiseWarp", label: "Noise warp", min: 0, max: 3, step: 0.1 },
       { key: "ellipseRatio", label: "Ellipse ratio", min: 0.4, max: 1.8, step: 0.05 },
@@ -467,6 +559,12 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["points", "angleDegrees"],
+    presets: [
+      { name: "Sunflower", values: { points: 1200, angleDegrees: 137.5, radialScale: 1.5, markMode: 0, markSize: 1.2, ellipseRatio: 1, noiseWarp: 0 } },
+      { name: "Spiral arms", values: { points: 800, angleDegrees: 137.3, radialScale: 2, markMode: 2, markSize: 2, ellipseRatio: 1, noiseWarp: 0.4 } },
+      { name: "Tick field", values: { points: 1500, angleDegrees: 137.5, radialScale: 1.4, markMode: 1, markSize: 1.5, ellipseRatio: 1.2, noiseWarp: 0.2 } },
+    ],
     run: (p) =>
       phyllotaxis({
         ...phyllotaxisDefaults,
@@ -498,7 +596,16 @@ const generators: GeneratorDef[] = [
     params: [
       { key: "seed", label: "Seed", min: 0, max: 9999, step: 1 },
       { key: "attractorCount", label: "Attractors", min: 50, max: 1500, step: 50 },
-      { key: "startMode", label: "Start (0 root, 1 center, 2 sides)", min: 0, max: 2, step: 1 },
+      {
+        kind: "select",
+        key: "startMode",
+        label: "Start position",
+        options: [
+          { label: "Root (bottom)", value: 0 },
+          { label: "Center", value: 1 },
+          { label: "Sides", value: 2 },
+        ],
+      },
       { key: "growthStep", label: "Growth step", min: 0.5, max: 6, step: 0.1 },
       { key: "attractionRadius", label: "Attraction radius", min: 4, max: 40, step: 1 },
       { key: "killRadius", label: "Kill radius", min: 1, max: 12, step: 0.5 },
@@ -510,6 +617,7 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["attractorCount", "maxIterations"],
     run: (p) =>
       spaceColonization({
         ...spaceColonizationDefaults,
@@ -544,13 +652,23 @@ const generators: GeneratorDef[] = [
       { key: "levels", label: "Contour levels", min: 2, max: 32, step: 1 },
       { key: "frequency", label: "Frequency", min: 0.02, max: 0.35, step: 0.005 },
       { key: "directionalMix", label: "Directional mix", min: 0, max: 1, step: 0.05 },
-      { key: "sourceLayout", label: "Layout (0 random, 1 ring, 2 line)", min: 0, max: 2, step: 1 },
+      {
+        kind: "select",
+        key: "sourceLayout",
+        label: "Source layout",
+        options: [
+          { label: "Random", value: 0 },
+          { label: "Ring", value: 1 },
+          { label: "Line", value: 2 },
+        ],
+      },
       { key: "smoothing", label: "Smoothing", min: 0, max: 2, step: 1 },
       { key: "imageInfluence", label: "Image influence", min: 0, max: 1, step: 0.05 },
       { key: "imageContrast", label: "Image contrast", min: 0.2, max: 3, step: 0.05 },
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["gridSize"],
     run: (p) =>
       waveInterference({
         ...waveInterferenceDefaults,
@@ -596,6 +714,7 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["gridSize"],
     run: (p) =>
       metaballs({
         ...metaballsDefaults,
@@ -631,7 +750,16 @@ const generators: GeneratorDef[] = [
       { key: "gridSize", label: "Grid size", min: 40, max: 220, step: 10 },
       { key: "minLength", label: "Min length", min: 0.5, max: 10, step: 0.1 },
       { key: "maxLength", label: "Max length", min: 1, max: 30, step: 0.5 },
-      { key: "angleMode", label: "Angle mode (0 gradient, 1 tangent, 2 fixed)", min: 0, max: 2, step: 1 },
+      {
+        kind: "select",
+        key: "angleMode",
+        label: "Angle mode",
+        options: [
+          { label: "Gradient", value: 0 },
+          { label: "Tangent", value: 1 },
+          { label: "Fixed", value: 2 },
+        ],
+      },
       { key: "angleJitter", label: "Angle jitter", min: 0, max: 1, step: 0.02 },
       { key: "densityScale", label: "Density scale", min: 0.05, max: 1.5, step: 0.05 },
       { key: "curvature", label: "Curvature", min: 0, max: 1.5, step: 0.05 },
@@ -641,6 +769,12 @@ const generators: GeneratorDef[] = [
     ],
     seedKey: "seed",
     usesImage: true,
+    lockRandom: ["hatchCount", "gridSize"],
+    presets: [
+      { name: "Pencil shading", values: { angleMode: 0, angleJitter: 0.1, minLength: 2, maxLength: 8, curvature: 0.2, densityScale: 0.6, noiseScale: 0.012 } },
+      { name: "Crosshatch flow", values: { angleMode: 1, angleJitter: 0.2, minLength: 1.5, maxLength: 14, curvature: 0.8, densityScale: 0.8, noiseScale: 0.02 } },
+      { name: "Fixed engraving", values: { angleMode: 2, angleJitter: 0, minLength: 3, maxLength: 12, curvature: 0, densityScale: 0.7, noiseScale: 0.01 } },
+    ],
     run: (p) =>
       hatching({
         ...hatchingDefaults,
@@ -721,6 +855,12 @@ const generators: GeneratorDef[] = [
       { key: "lineJitter", label: "Line jitter", min: 0, max: 1.5, step: 0.05 },
     ],
     seedKey: "seed",
+    lockRandom: ["linesPerRibbon"],
+    presets: [
+      { name: "Single calm ribbon", values: { ribbons: 1, linesPerRibbon: 120, length: 180, ribbonWidth: 55, amplitude: 30, twist: 0.2, frequency: 1, spread: 0, phaseDrift: 0.1, lineJitter: 0 } },
+      { name: "Twisted bundle", values: { ribbons: 3, linesPerRibbon: 110, length: 170, ribbonWidth: 45, amplitude: 50, twist: 0.7, frequency: 1.5, spread: 40, phaseDrift: 0.3, lineJitter: 0.2 } },
+      { name: "High-frequency mesh", values: { ribbons: 2, linesPerRibbon: 200, length: 190, ribbonWidth: 60, amplitude: 40, twist: 0.4, frequency: 2.6, spread: 25, phaseDrift: 0.6, lineJitter: 0.1 } },
+    ],
     run: (p) =>
       harmonicRibbon({
         ...harmonicRibbonDefaults,
@@ -900,20 +1040,75 @@ function buildGeneratorTabs(): void {
 function buildGeneratorControls(): void {
   const g = activeGenerator();
   const values = paramValues[g.id];
-  const nodes = g.params.map((p) =>
-    numberControl({
-      label: p.label,
-      min: p.min,
-      max: p.max,
-      step: p.step,
-      value: values[p.key],
-      onChange: (v) => {
-        values[p.key] = v;
-        scheduleGenerate();
-      },
-    }),
-  );
+  const apply = (key: string) => (v: number) => {
+    values[key] = v;
+    scheduleGenerate();
+  };
+  const nodes: HTMLElement[] = [];
+  if (g.presets && g.presets.length) nodes.push(buildPresetControl(g));
+  for (const p of g.params) {
+    if (p.kind === "select") {
+      nodes.push(
+        selectControl({
+          label: p.label,
+          options: p.options,
+          value: values[p.key],
+          onChange: apply(p.key),
+        }),
+      );
+    } else if (p.kind === "toggle") {
+      nodes.push(
+        toggleControl({
+          label: p.label,
+          value: values[p.key],
+          onChange: apply(p.key),
+        }),
+      );
+    } else {
+      nodes.push(
+        numberControl({
+          label: p.label,
+          min: p.min,
+          max: p.max,
+          step: p.step,
+          value: values[p.key],
+          onChange: apply(p.key),
+        }),
+      );
+    }
+  }
   generatorControls.replaceChildren(...nodes);
+}
+
+/** Dropdown of curated "looks" for a generator. Selecting one merges its
+ *  snapshot onto the live values, then rebuilds controls so the sliders
+ *  reflect the preset and re-renders. */
+function buildPresetControl(g: GeneratorDef): HTMLElement {
+  const field = document.createElement("label");
+  field.className = "field preset-field";
+  const span = document.createElement("span");
+  span.textContent = "Style preset";
+  const select = document.createElement("select");
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Custom / pick a preset...";
+  select.appendChild(placeholder);
+  for (const preset of g.presets ?? []) {
+    const opt = document.createElement("option");
+    opt.value = preset.name;
+    opt.textContent = preset.name;
+    select.appendChild(opt);
+  }
+  select.addEventListener("change", () => {
+    const preset = g.presets?.find((pr) => pr.name === select.value);
+    if (!preset) return;
+    Object.assign(paramValues[g.id], preset.values);
+    buildGeneratorControls();
+    scheduleGenerate();
+  });
+  field.appendChild(span);
+  field.appendChild(select);
+  return field;
 }
 
 function setImageFromElement(img: HTMLImageElement, name: string): void {
@@ -1395,6 +1590,34 @@ async function exportFileAs(
   }
 }
 
+/** Re-roll every param of the active generator within its sensible range,
+ *  giving a fresh-but-coherent variation. Locked keys (and the value the
+ *  preset would consider structural) are left alone. */
+function surpriseActiveGenerator(): void {
+  const g = activeGenerator();
+  const values = paramValues[g.id];
+  const locked = new Set(g.lockRandom ?? []);
+  for (const p of g.params) {
+    if (locked.has(p.key)) continue;
+    if (p.kind === "select") {
+      const choice = p.options[Math.floor(Math.random() * p.options.length)];
+      values[p.key] = choice.value;
+    } else if (p.kind === "toggle") {
+      values[p.key] = Math.random() < 0.5 ? 0 : 1;
+    } else {
+      const [lo, hi] = p.randomize ?? [p.min, p.max];
+      const raw = lo + Math.random() * (hi - lo);
+      const snapped = p.step ? Math.round(raw / p.step) * p.step : raw;
+      const clamped = Math.min(p.max, Math.max(p.min, snapped));
+      // Avoid floating-point dust from the step division.
+      values[p.key] = Number(clamped.toFixed(6));
+    }
+  }
+  if (g.seedKey) values[g.seedKey] = Math.floor(Math.random() * 10000);
+  buildGeneratorControls();
+  scheduleGenerate();
+}
+
 function resetGeneratorDefaults(): void {
   for (const g of generators) {
     paramValues[g.id] = { ...g.defaults };
@@ -1689,6 +1912,10 @@ function init(): void {
     paramValues[g.id][g.seedKey] = Math.floor(Math.random() * 10000);
     buildGeneratorControls();
     scheduleGenerate();
+  });
+
+  $<HTMLButtonElement>("btn-surprise").addEventListener("click", () => {
+    surpriseActiveGenerator();
   });
 
   $<HTMLInputElement>("opt-optimize").addEventListener("change", (e) => {

@@ -61,6 +61,57 @@ export function numberControl(o: NumberControlOpts): HTMLElement {
   return field;
 }
 
+export interface SelectControlOpts {
+  label: string;
+  value: number;
+  options: { label: string; value: number }[];
+  onChange: (v: number) => void;
+}
+
+/** A labelled dropdown for params that are really discrete choices (modes,
+ *  layouts). The selected value stays numeric so it round-trips through the
+ *  worker and project files unchanged. */
+export function selectControl(o: SelectControlOpts): HTMLElement {
+  const field = document.createElement("label");
+  field.className = "field";
+  const span = document.createElement("span");
+  span.textContent = o.label;
+  const select = document.createElement("select");
+  for (const opt of o.options) {
+    const el = document.createElement("option");
+    el.value = String(opt.value);
+    el.textContent = opt.label;
+    if (opt.value === o.value) el.selected = true;
+    select.appendChild(el);
+  }
+  select.addEventListener("change", () => o.onChange(parseFloat(select.value)));
+  field.appendChild(span);
+  field.appendChild(select);
+  return field;
+}
+
+export interface ToggleControlOpts {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}
+
+/** An on/off switch for boolean-style params. Emits 1/0 so it fits the same
+ *  numeric param contract as the sliders. */
+export function toggleControl(o: ToggleControlOpts): HTMLElement {
+  const label = document.createElement("label");
+  label.className = "check";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = o.value !== 0;
+  input.addEventListener("change", () => o.onChange(input.checked ? 1 : 0));
+  const span = document.createElement("span");
+  span.textContent = o.label;
+  label.appendChild(input);
+  label.appendChild(span);
+  return label;
+}
+
 export interface TextControlOpts {
   label: string;
   value: string;

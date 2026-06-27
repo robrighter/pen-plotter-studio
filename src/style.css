@@ -868,6 +868,21 @@ button.secondary {
   margin-top: 9px;
 }
 
+.button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.button-row button {
+  width: 100%;
+}
+
+.preset-field select {
+  font-weight: 650;
+}
+
 #btn-export-svg,
 #btn-export-gcode {
   justify-content: space-between;
